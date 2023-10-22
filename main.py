@@ -12,26 +12,46 @@ import json
 myWifi.connect(myWifi.TUFTS)
 
 vacuum = Pin(21, Pin.OUT)
-vacuum.on()
-setLow = Servo.ContinuousServo(27)
-setLow.set_speed(-40)
+vacuum.off()
 
 message = ""
+dc = 1500
+
 
 # class to drive the car, assumes 360 degree servos
 class TankDrive:
-    def __init__(self,leftPin,rightPin):
-        self.leftM = Servo.ContinuousServo(pin_number=leftPin)
-        self.rightM = Servo.ContinuousServo(pin_number=rightPin)
+    def __init__(self,leftPin,rightPin,myoffset):
+        self.leftM = Servo.ContinuousServo(pin_number=leftPin, duty_us =dc, offset = myoffset)
+        self.rightM = Servo.ContinuousServo(pin_number=rightPin, duty_us = dc, offset = myoffset)
+        self.leftM.set_speed(0)
+        self.rightM.set_speed(0)
 
     def move(self,joyY,joyX):
-        leftMotor = 100 * (joyY - joyX)
-        rightMotor = -100 * (joyY + joyX)
+        leftMotor = -100 * (joyY - joyX)
+        rightMotor = 100 * (joyY + joyX)
+        if ((joyY + joyX) < .05 and (joyY + joyX) > -.05):
+            leftMotor = 0
+            rightMotor = 0
         
-        self.leftM.set_speed(int(leftMotor-17))
-        self.rightM.set_speed(int(rightMotor-17))
+        self.leftM.set_speed(int(leftMotor))
+        self.rightM.set_speed(int(rightMotor))
     
-    #def surgeryMove(self,
+    def surgeryMove(self,forward,backward,fidelity):
+        
+        if forward:
+            self.leftM.set_speed(10)
+            self.rightM.set_speed(-10)
+            time.sleep(fidelity / 20)
+            self.leftM.set_speed(0)
+            self.rightM.set_speed(0)
+            time.sleep(.1)
+        elif backward:
+            self.leftM.set_speed(-10)
+            self.rightM.set_speed(10)
+            time.sleep(fidelity / 20)
+            self.leftM.set_speed(0)
+            self.rightM.set_speed(0)
+            time.sleep(.1)
 
 def gotMessage(topic, msg):
     
@@ -41,17 +61,21 @@ def gotMessage(topic, msg):
     info = msg.decode()
     message = info.split(", ")
     inputDict = json.loads(info)
-    print(inputDict)
+    #print(inputDict)
     
     if inputDict['vac']:
         vacuum.on()
     else:
         vacuum.off()
         
-    theCar.move(inputDict['leftJoyY'],inputDict['leftJoyX'])
+    if inputDict['mode']:
+        theCar.move(inputDict['leftJoyY'],inputDict['leftJoyX'])
+    else:
+        theCar.surgeryMove(inputDict['triangle'],inputDict['circle'],inputDict['fidelity'])
     
         
-theCar= TankDrive(26,27)
+theCar= TankDrive(26,27,myoffset=-17)
+
 theArm = ArmDrive.ArmDrive(pinA=12,pinB=13,pinZ=14,pinR=15,lenA=100,lenB=100,minX=10)
 
 try:
@@ -78,3 +102,6 @@ except Exception as e:
     print(e)
 finally:
     fred.disconnect()
+
+
+
